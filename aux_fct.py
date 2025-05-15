@@ -127,11 +127,11 @@ def fct_DIoU(box1, box2):
 	inter_h = max(0.0, min(box1[4], box2[4]) - max(box1[1], box2[1]))	#along DEC
 	inter_d = max(0.0, min(box1[5], box2[5]) - max(box1[2], box2[2]))	#along Freq
 	#Compute the intersection volume (rectangular cuboid)
-	inter_3d = float(inter_w*inter_h*inter_d)
+	inter_3d = float(inter_w * inter_h * inter_d)
 
 	#Compute the union volume (total volume discounting the intersection)
-	vol_box1 = abs(box1[3] - box1[0])*abs(box1[4] - box1[1])*abs(box1[5] - box1[2])
-	vol_box2 = abs(box2[3] - box2[0])*abs(box2[4] - box2[1])*abs(box2[5] - box2[2])
+	vol_box1 = abs(box1[3]-box1[0])*abs(box1[4]-box1[1])*abs(box1[5]-box1[2])
+	vol_box2 = abs(box2[3]-box2[0])*abs(box2[4]-box2[1])*abs(box2[5]-box2[2])
 	union_3d = float(vol_box1 + vol_box2 - inter_3d)
 
 	#Classical Intersection over Union
@@ -142,14 +142,14 @@ def fct_DIoU(box1, box2):
 	enclose_h = max(box1[4], box2[4]) - min(box1[1], box2[1])
 	enclose_d = max(box1[5], box2[5]) - min(box1[2], box2[2])
 	#Euclidean distance between the two opposite corner of the enclosing box (i.e. diagonal)
-	diag_enclose = np.sqrt(enclose_w**2 + enclose_h**2 + enclose_d**2)
+	diag_enclose = float(np.sqrt(enclose_w*enclose_w + enclose_h*enclose_h + enclose_d*enclose_d))
 
 	#Center coordinates of each box
 	cx_1 = (box1[3] + box1[0])*0.5 ; cx_2 = (box2[3] + box2[0])*0.5
 	cy_1 = (box1[4] + box1[1])*0.5 ; cy_2 = (box2[4] + box2[1])*0.5
 	cz_1 = (box1[5] + box1[2])*0.5 ; cz_2 = (box2[5] + box2[2])*0.5
 	#Euclidean distance between box centers
-	dist_cent = np.sqrt((cx_1 - cx_2)**2 + (cy_1 - cy_2)**2 + (cz_1 - cz_2)**2)
+	dist_cent = float(np.sqrt((cx_1 - cx_2)*(cx_1 - cx_2) + (cy_1 - cy_2)*(cy_1 - cy_2) + (cz_1 - cz_2)*(cz_1 - cz_2)))
 
 	#DIoU = IoU - (distance between centers / diagonal of enclosing box)
 	return IoU - (dist_cent/diag_enclose)
@@ -185,43 +185,40 @@ def tile_filter(c_pred, c_box, c_tile, nb_box):
 					offset = int(k*(8+nb_param))
 
 					#Extract probability and objectness
-					c_box[6] = c_pred[offset + 6, p_f, p_dec, p_ra]
-					c_box[7] = c_pred[offset + 7, p_f, p_dec, p_ra]
+					c_box[6] = c_pred[offset+6,p_f,p_dec,p_ra]
+					c_box[7] = c_pred[offset+7,p_f,p_dec,p_ra]
 
 					#Manual objectness penality on the edges of the images (help for both obj selection and NMS)
-					if (p_ra == 0 or p_ra == yolo_nb_sky_reg-1 or \
-					p_dec == 0 or p_dec == yolo_nb_sky_reg-1 or \
-					p_f == 0 or p_f == yolo_nb_freq_reg-1):
+					if(p_ra == 0 or p_ra == yolo_nb_sky_reg-1 or \
+					   p_dec == 0 or p_dec == yolo_nb_sky_reg-1 or \
+					   p_f == 0 or p_f == yolo_nb_freq_reg-1):
 
-						c_box[6] = max(0.03, c_box[6] - 0.05)
-						c_box[7] = max(0.03, c_box[7] - 0.05)
+						c_box[6] = max(0.03,c_box[6]-0.05)
+						c_box[7] = max(0.03,c_box[7]-0.05)
 
 					#Filter by objectness threshold
 					if (c_box[7] >= 0.2):
 						#Compute box center (bx/by/bz) and size (bw/bh/bd)
-						bx = 0.5*(c_pred[offset+0, p_f, p_dec, p_ra] + c_pred[offset+3, p_f, p_dec, p_ra])
-						by = 0.5*(c_pred[offset+1, p_f, p_dec, p_ra] + c_pred[offset+4, p_f, p_dec, p_ra])
-						bz = 0.5*(c_pred[offset+2, p_f, p_dec, p_ra] + c_pred[offset+5, p_f, p_dec, p_ra])
-
-						bw = max(5.0, c_pred[offset+3, p_f, p_dec, p_ra] - c_pred[offset+0, p_f, p_dec, p_ra])
-						bh = max(5.0, c_pred[offset+4, p_f, p_dec, p_ra] - c_pred[offset+1, p_f, p_dec, p_ra])
-						bd = max(5.0, c_pred[offset+5, p_f, p_dec, p_ra] - c_pred[offset+2, p_f, p_dec, p_ra])
+						bx = (c_pred[offset+0,p_f,p_dec,p_ra] + c_pred[offset+3,p_f,p_dec,p_ra])*0.5
+						by = (c_pred[offset+1,p_f,p_dec,p_ra] + c_pred[offset+4,p_f,p_dec,p_ra])*0.5
+						bz = (c_pred[offset+2,p_f,p_dec,p_ra] + c_pred[offset+5,p_f,p_dec,p_ra])*0.5
+						
+						bw = max(5.0, c_pred[offset+3,p_f,p_dec,p_ra] - c_pred[offset+0,p_f,p_dec,p_ra])
+						bh = max(5.0, c_pred[offset+4,p_f,p_dec,p_ra] - c_pred[offset+1,p_f,p_dec,p_ra])
+						bd = max(5.0, c_pred[offset+5,p_f,p_dec,p_ra] - c_pred[offset+2,p_f,p_dec,p_ra])
 
 						#Convert to corner format: [x_min, y_min, z_min, x_max, y_max, z_max]
-						c_box[0] = bx - 0.5*bw
-						c_box[1] = by - 0.5*bh
-						c_box[2] = bz - 0.5*bd
-						c_box[3] = bx + 0.5*bw
-						c_box[4] = by + 0.5*bh
-						c_box[5] = bz + 0.5*bd
+						c_box[0] = bx - bw*0.5; c_box[3] = bx + bw*0.5
+						c_box[1] = by - bh*0.5; c_box[4] = by + bh*0.5
+						c_box[2] = bz - bd*0.5; c_box[5] = bz + bd*0.5
 
 						#Save box
 						c_box[8] = k
-						c_box[9:9+nb_param] = c_pred[offset+8:offset+8+nb_param, p_f, p_dec, p_ra]
+						c_box[9:9+nb_param] = c_pred[offset+8:offset+8+nb_param,p_f,p_dec,p_ra]
 						c_box[-1] = p_f*yolo_nb_freq_reg*yolo_nb_sky_reg + p_dec*yolo_nb_sky_reg + p_ra
 
 						#Store the final box
-						c_tile[c_nb_box, :] = c_box[:]
+						c_tile[c_nb_box,:] = c_box[:]
 						c_nb_box += 1
 
 	return c_nb_box
@@ -252,18 +249,17 @@ def first_NMS(c_tile, c_tile_kept, c_box, c_nb_box, nms_threshold):
 	#Loop over all the boxes until they are either kept or rejected
 	while c_nb_box > 0:
 		#Find the box with the maximum objectness score
-		max_objct = np.argmax(c_tile[:c_box_size_prev, 7])
+		max_objct = np.argmax(c_tile[:c_box_size_prev,7])
 
 		#Copy the best-scoring box into c_box
 		c_box = np.copy(c_tile[max_objct])
 
 		#Set its objectness to 0.0 to mark it as treated
-		c_tile[max_objct, 7] = 0.0
+		c_tile[max_objct,7] = 0.0
 
 		#Keep it in the final output
 		c_tile_kept[c_nb_box_final] = c_box
-		c_nb_box_final += 1
-		c_nb_box -= 1  #Reduce count
+		c_nb_box_final += 1; c_nb_box -= 1; i = 0
 
 		#Compare this box with all others in the tile
 		for i in range(c_box_size_prev):
@@ -271,11 +267,11 @@ def first_NMS(c_tile, c_tile_kept, c_box, c_nb_box, nms_threshold):
 				continue
 
 			#Compute Distance-IoU
-			DIoU = fct_DIoU(c_box[:6], c_tile[i, :6])
+			IoU = fct_DIoU(c_box[:6], c_tile[i,:6])
 
 			#Suppress if IoU exceeds threshold
-			if DIoU > nms_threshold:
-				c_tile[i, 7] = 0.0  #Set its objectness to 0.0 to mark it as treated
+			if(IoU >  nms_threshold):
+				c_tile[i,7] = 0.0  #Set its objectness to 0.0 to mark it as treated
 				c_nb_box -= 1       #Reduce count
 
 	return c_nb_box_final
@@ -305,43 +301,44 @@ def inter_patch_NMS(boxes, comp_boxes, c_tile, direction, overlap, patch_shift, 
 	"""
 
 	#Reset output
-	c_tile[:, :] = 0.0
+	c_tile[:,:] = 0.0
 	nb_box_kept = 0
 
 	#Determine which boxes are fully inside non-overlapping region
-	mask_keep = np.where((boxes[:, 0] > overlap[0]) & (boxes[:, 3] < patch_shift[0]) & \
-				(boxes[:, 1] > overlap[1]) & (boxes[:, 4] < patch_shift[1]) & \
-				(boxes[:, 2] > overlap[2]) & (boxes[:, 5] < patch_shift[2]))[0]
+	mask_keep = np.where((boxes[:,0] > overlap[0]) & (boxes[:,3] < patch_shift[0]) &\
+						(boxes[:,1] > overlap[1]) & (boxes[:,4] < patch_shift[1]) &\
+						(boxes[:,2] > overlap[2]) & (boxes[:,5] < patch_shift[2]))[0]
 
 	#Determine boxes that lie on the shared border and need NMS
-	mask_remain = np.where((boxes[:, 0] <= overlap[0]) | (boxes[:, 3] >= patch_shift[0]) | \
-				(boxes[:, 1] <= overlap[1]) | (boxes[:, 4] >= patch_shift[1]) | \
-				(boxes[:, 2] <= overlap[2]) | (boxes[:, 5] >= patch_shift[2]))[0]
+	mask_remain = np.where((boxes[:,0] <= overlap[0]) | (boxes[:,3] >= patch_shift[0]) |\
+						(boxes[:,1] <= overlap[1]) | (boxes[:,4] >= patch_shift[1]) |\
+						(boxes[:,2] <= overlap[2]) | (boxes[:,5] >= patch_shift[2]))[0]
 
 	#Copy safe boxes directly to output
-	nb_box_kept = mask_keep.shape[0]
-	c_tile[0:nb_box_kept, :] = boxes[mask_keep, :]
+	nb_box_kept = np.shape(mask_keep)[0]
+	c_tile[0:nb_box_kept,:] = boxes[mask_keep,:]
 
 	#Shift comparison boxes into current patch's frame of reference
-	comp_boxes[:, 0:3] += direction[:]*patch_shift[:]
-	comp_boxes[:, 3:6] += direction[:]*patch_shift[:]
+	comp_boxes[:,0:3] += direction[:]*patch_shift[:]
+	comp_boxes[:,3:6] += direction[:]*patch_shift[:]
 
 	#Keep only comparison boxes that are within patch bounds
-	comp_mask_keep = np.where((comp_boxes[:, 0] < patch_size[0]) & (comp_boxes[:, 3] > 0) & \
-				(comp_boxes[:, 1] < patch_size[1]) & (comp_boxes[:, 4] > 0) & \
-				(comp_boxes[:, 2] < patch_size[2]) & (comp_boxes[:, 5] > 0))[0]
+	comp_mask_keep = np.where((comp_boxes[:,0] < patch_size[0]) & (comp_boxes[:,3] > 0) &\
+						(comp_boxes[:,1] < patch_size[1]) & (comp_boxes[:,4] > 0) &\
+						(comp_boxes[:,2] < patch_size[2]) & (comp_boxes[:,5] > 0))[0]
 
 	#For each border box, check if it overlaps too much with a better prediction in the neighbor
 	for b_ref in mask_remain:
 		found = 0
 		for b_comp in comp_mask_keep:
-			IoU = fct_DIoU(boxes[b_ref, :6], comp_boxes[b_comp, :6])
-			if IoU > nms_threshold and boxes[b_ref, 7] < comp_boxes[b_comp, 7]:
+			IoU = fct_DIoU(boxes[b_ref,:6], comp_boxes[b_comp,:6])
+
+			if(IoU > nms_threshold and boxes[b_ref,7] < comp_boxes[b_comp,7]):
 				found = 1
 				break
-			if found == 0:
-				c_tile[nb_box_kept, :] = boxes[b_ref, :]
-				nb_box_kept += 1
+		if(found == 0):
+			c_tile[nb_box_kept,:] = boxes[b_ref,:]
+			nb_box_kept += 1
 
 	return nb_box_kept
 
