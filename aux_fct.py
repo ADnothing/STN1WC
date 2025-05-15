@@ -1,4 +1,4 @@
-#/usr/bin/env python
+#/usr/bin/env python3.11.2-deb12
 
 import numpy as np
 from scipy import signal
