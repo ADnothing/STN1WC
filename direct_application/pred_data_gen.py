@@ -26,7 +26,6 @@ def init_data_gen():
 	if(do_norm):
 		#Full cube norm
 		cube_norm(cube_file_path, "pred")
-		splited=1 #Done in cube_norm
 
 	hdul = fits.open(cube_file_path, memmap=True)
 	wcs_cube = WCS(hdul[0].header)
@@ -35,21 +34,20 @@ def init_data_gen():
 	l_map_pixel_size = map_pixel_size + orig_offset_sky*2
 	l_map_pixel_freq_size = map_pixel_freq_size+2*orig_offset_freq
 
-	if not(splited):
-		if(cube_spliting):
-			#Determine number of patches per sub-cube based on max allowed size
-			encoding_bytes = 2
-			nb_sky_patch_per_subcube = int((np.sqrt(size_file_split_limit*1e9/(encoding_bytes*(map_pixel_freq_size+2*orig_offset_freq))) - overlap_sky)/patch_shift_sky)
-			sub_cube_pixel_size = nb_sky_patch_per_subcube*patch_shift_sky + overlap_sky
-			nb_sub_cube_per_dim = int(np.ceil((map_pixel_size + orig_offset_sky*2)/sub_cube_pixel_size))
+	if(cube_spliting):
+		#Determine number of patches per sub-cube based on max allowed size
+		encoding_bytes = 2
+		nb_sky_patch_per_subcube = int((np.sqrt(size_file_split_limit*1e9/(encoding_bytes*(map_pixel_freq_size+2*orig_offset_freq))) - overlap_sky)/patch_shift_sky)
+		sub_cube_pixel_size = nb_sky_patch_per_subcube*patch_shift_sky + overlap_sky
+		nb_sub_cube_per_dim = int(np.ceil((map_pixel_size + orig_offset_sky*2)/sub_cube_pixel_size))
 
-		else:
-			#Using cube splitting is expected here, but it would be possible to distribute individual sub-cube predictions by adjusting the coordinate bellow
-			nb_sky_patch_per_subcube = nb_area_sky
-			sub_cube_pixel_size = nb_sky_patch_per_subcube*patch_shift_sky + overlap_sky
-			nb_sub_cube_per_dim = 1
-			norm_data = np.fromfile(work_path+"pred_0_0.bin", dtype="uint16")
-			norm_data = np.reshape(norm_data, (l_map_pixel_freq_size, l_map_pixel_size, l_map_pixel_size))
+	else:
+		#Using cube splitting is expected here, but it would be possible to distribute individual sub-cube predictions by adjusting the coordinate bellow
+		nb_sky_patch_per_subcube = nb_area_sky
+		sub_cube_pixel_size = nb_sky_patch_per_subcube*patch_shift_sky + overlap_sky
+		nb_sub_cube_per_dim = 1
+		norm_data = np.fromfile(work_path+"pred_0_0.bin", dtype="uint16")
+		norm_data = np.reshape(norm_data, (l_map_pixel_freq_size, l_map_pixel_size, l_map_pixel_size))
 
 #=========================================================================================================================
 
