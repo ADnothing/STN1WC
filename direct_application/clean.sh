@@ -2,7 +2,7 @@
 
 ans=""
 
-rm out*
+rm outputs/*
 
 echo "./fwd_res :"
 ls ./fwd_res
