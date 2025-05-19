@@ -367,5 +367,8 @@ def assemble_and_build_catalog():
 	final_box_cat[:,8] = ((np.exp(box_cat[:,11]*lims[2,0] + lims[2,1])*pixel_size_freq)/final_box_cat[:,5])*299792.458
 	final_box_cat[:,9] = box_cat[:,7]
 	final_box_cat[:,10]= box_cat[:,6]
+	
+	date_str = datetime.now().strftime("%d_%m_%y")
+	cat_name = f"LADUMA_final_catalog_fullSDC2_{date_str}.txt"
 
-	np.savetxt("final_pred_catalog.txt", final_box_cat, header=cat_header, comments="", fmt="%d %3.13f %2.13f %1.13f %1.13f %10.1f %3.13f %2.13f %3.13f %1.6f %1.6f")
+	np.savetxt(cat_name, final_box_cat, header=cat_header, comments="", fmt="%d %3.13f %2.13f %1.13f %1.13f %10.1f %3.13f %2.13f %3.13f %1.6f %1.6f")
