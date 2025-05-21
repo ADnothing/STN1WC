@@ -5,6 +5,6 @@ mkdir -p ./outputs
 mkdir -p ./pred_subfiles
 mkdir -p ./catalogs
 
-python3 pred.py 1> ./outputs/out1 2> ./outputs/out2 &
+python3 -W "ignore" pred.py 1> ./outputs/out1 2> ./outputs/out2 &
 
 exit 0
