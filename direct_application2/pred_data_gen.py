@@ -367,10 +367,10 @@ def assemble_and_build_catalog():
 	final_box_cat[:,10]= box_cat[:,6]
 
 	date_str = datetime.now().strftime("%d_%m_%y")
-	cat_name = f"./catalogs/LADUMA_final_catalog_fullSDC2_{date_str}.txt"
+	cat_name = f"./catalogs/LADUMA_pred_catalog_{date_str}.txt"
 	n = 1
 	while os.path.exists(cat_name):
-		cat_name = f"./catalogs/LADUMA_final_catalog_fullSDC2_{date_str}_{n}.txt"
+		cat_name = f"./catalogs/LADUMA_pred_catalog_{date_str}_{n}.txt"
 		n += 1
 
 	np.savetxt(cat_name, final_box_cat, header=cat_header, comments="", fmt="%d %3.13f %2.13f %1.13f %1.13f %10.1f %3.13f %2.13f %3.13f %1.6f %1.6f")
