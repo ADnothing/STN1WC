@@ -48,12 +48,18 @@ def full_visu(hdul, cat_path, disp_prob=False):
 	norm_freq = plt.Normalize(freq.min(), freq.max())
 	colors = cmap(norm_freq(freq))
 	size = 100*objectness
+	
+	textstr = "Nb sources: %d"%(len(ra))
+	props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+	ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize="x-arge",
+        	verticalalignment='top', bbox=props)
 
+               
 	ax.scatter(pix_x, pix_y,
                c=colors,
                s=size,
-               marker='o',
-               alpha=0.7,
+               marker='.',
+               alpha=0.45,
                zorder=3)
 
 	if disp_prob:

@@ -370,12 +370,16 @@ def cube_norm(cube_path, prefix):
 	wcs_cube = WCS(hdul[0].header)
 
 	cube_data = hdul[0].data[0]
-	np.nan_to_num(cube_data[:,:,:], copy=False, nan=0.0)
 
+
+	#Note: Be careful to compute std **BEFORE** converting NaN values to 0.
+	#Otherwise, the empty areas in the data will have a huge impact on the normalization.
 	c_norm = np.zeros(np.shape(cube_data)[0])
 	for i in tqdm(range(0, np.shape(cube_data)[0])):
                 cube_slice = np.asarray(cube_data[i], dtype="float32")
-                c_norm[i] = np.std(cube_slice, axis=(0,1))
+                c_norm[i] = np.nanstd(cube_slice, axis=(0,1))
+
+	np.nan_to_num(cube_data[:,:,:], copy=False, nan=0.0)
 
 	#Decide how to split the cube into sub-cubes for disk-saving and memory handling
 	if(cube_spliting):
