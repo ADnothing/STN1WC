@@ -3,6 +3,7 @@
 import sys, os
 
 import numpy as np
+import pandas as pd
 
 from astropy.io import fits
 from astropy.wcs import WCS, utils
@@ -15,7 +16,9 @@ from matplotlib.patches import Rectangle
 from matplotlib.patheffects import withStroke
 
 
-cube_file_path = "/minerva/dcornu/LADUMA_data/laduma_dr1.2_image.1304~1420MHz_clean.fits"
+cube_file_path = "/home/anthore/laduma_dr1.2_image.1304~1420MHz_clean.fits"
+ref_cat_path = "/home/anthore/test_norm/LADUMA_lowz_catalog_dr1.csv"
+
 cat_path = sys.argv[1]
 
 def full_visu(hdul, cat_path, disp_prob=False):
@@ -45,22 +48,25 @@ def full_visu(hdul, cat_path, disp_prob=False):
 	ax.imshow(background_data, origin='lower', cmap='gray', norm=norm)
 
 	cmap = plt.cm.viridis
-	norm_freq = plt.Normalize(freq.min(), freq.max())
+	norm_freq = plt.Normalize(1.304782280000E+09, 1.420405751767E+09)
 	colors = cmap(norm_freq(freq))
-	size = 100*objectness
+	size = 200*objectness
 	
 	textstr = "Nb sources: %d"%(len(ra))
 	props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-	ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize="x-arge",
+	ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize="x-large",
         	verticalalignment='top', bbox=props)
 
                
-	ax.scatter(pix_x, pix_y,
-               c=colors,
-               s=size,
-               marker='.',
-               alpha=0.45,
-               zorder=3)
+	ax.scatter(pix_x, pix_y, c=colors, s=size, marker='.', alpha=0.45, zorder=3)
+
+	if os.path.isfile(ref_cat_path):
+	
+		ref_LADUMA = pd.read_csv(ref_cat_path, usecols=[2, 3, 39])
+		
+		colors_ref = cmap(norm_freq(ref_LADUMA["freq"].values))
+
+		ax.scatter(ref_LADUMA["x"].values, ref_LADUMA["y"].values, c=colors_ref, s=20, marker=".", edgecolor="white", zorder=4)
 
 	if disp_prob:
 		for x, y, p in zip(pix_x, pix_y, prob):
@@ -194,4 +200,4 @@ if __name__ == "__main__":
 	wcs_cube = WCS(hdul[0].header)
 
 	full_visu(hdul, cat_path)
-	sources_visu(hdul, cat_path)
+	#sources_visu(hdul, cat_path)
