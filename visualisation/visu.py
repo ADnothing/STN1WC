@@ -21,7 +21,7 @@ ref_cat_path = "/home/anthore/test_norm/LADUMA_lowz_catalog_dr1.csv"
 
 cat_path = sys.argv[1]
 
-def full_visu(hdul, cat_path, disp_prob=False):
+def full_visu(hdul, cat_path, disp_prob=False, match_only=False):
 	"""
 	Visualizes all predicted sources from a catalog over a representative slice of the data cube.
 
@@ -37,9 +37,19 @@ def full_visu(hdul, cat_path, disp_prob=False):
 	background_data = np.squeeze(hdul[0].data)[hdul[0].header["CRPIX3"] - 1]
 	wcs = WCS(hdul[0].header, naxis=2)
 
-	cat = np.loadtxt(cat_path, skiprows=1, usecols=(1, 2, 5, 9, 10))
-	ra, dec, freq, objectness, prob = cat.T
-
+	cat = np.loadtxt(cat_path, skiprows=1)
+	ra = cat[:,1]
+	dec = cat[:,2]
+	freq = cat[:,5]
+	objectness = cat[:,9]
+	prob = cat[:,10]
+	if cat.shape[1] == 12:
+		match_flag = cat[:,-1]
+		mask_matched = match_flag.astype(int) == 1
+		matched = True
+	else:
+		matched = False
+		
 	pix_x, pix_y = wcs.world_to_pixel_values(ra, dec)
 
 	norm = simple_norm(background_data, 'sqrt', percent=90)
@@ -52,13 +62,26 @@ def full_visu(hdul, cat_path, disp_prob=False):
 	colors = cmap(norm_freq(freq))
 	size = 200*objectness
 	
-	textstr = "Nb sources: %d"%(len(ra))
+	
+	
+	if match_only:
+		textstr = "Nb matched sources: %d"%(len(ra[mask_matched]))
+	else:
+		textstr = "Nb sources: %d"%(len(ra))
 	props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
 	ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize="x-large",
         	verticalalignment='top', bbox=props)
 
-               
-	ax.scatter(pix_x, pix_y, c=colors, s=size, marker='.', alpha=0.45, zorder=3)
+	if matched:
+		ax.scatter(pix_x[mask_matched], pix_y[mask_matched], c=colors[mask_matched], s=size[mask_matched], marker='*', alpha=0.45, zorder=3, label="Matched")
+		
+		if not match_only:
+			mask_notmatch = match_flag.astype(int) == 0
+			ax.scatter(pix_x[mask_notmatch], pix_y[mask_notmatch], c=colors[mask_notmatch], s=size[mask_notmatch], marker='.', alpha=0.45, zorder=3, label="Not Matched")
+		
+		plt.legend()
+	else:
+		ax.scatter(pix_x, pix_y, c=colors, s=size, marker='.', alpha=0.45, zorder=3)
 
 	if os.path.isfile(ref_cat_path):
 	
@@ -66,7 +89,9 @@ def full_visu(hdul, cat_path, disp_prob=False):
 		
 		colors_ref = cmap(norm_freq(ref_LADUMA["freq"].values))
 
-		ax.scatter(ref_LADUMA["x"].values, ref_LADUMA["y"].values, c=colors_ref, s=20, marker=".", edgecolor="white", zorder=4)
+		ax.scatter(ref_LADUMA["x"].values, ref_LADUMA["y"].values, c=colors_ref, s=20, marker=".", edgecolor="white", zorder=4, label="Laduma cat")
+		
+		plt.legend()
 
 	if disp_prob:
 		for x, y, p in zip(pix_x, pix_y, prob):
@@ -200,4 +225,4 @@ if __name__ == "__main__":
 	wcs_cube = WCS(hdul[0].header)
 
 	full_visu(hdul, cat_path)
-	#sources_visu(hdul, cat_path)
+	sources_visu(hdul, cat_path)
