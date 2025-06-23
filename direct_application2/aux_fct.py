@@ -1,5 +1,7 @@
 #/usr/bin/env python3.11.2-deb12
 
+import config
+
 import numpy as np
 from scipy import signal
 
@@ -14,87 +16,6 @@ from astropy.io import fits
 from astropy.wcs import WCS, utils
 from astropy import units as u
 from astropy.coordinates import SkyCoord
-
-######	  GLOBAL VARIABLES AND DATA	  #####
-
-#Data are expected to be square in the RA and DEC axis
-
-global map_pixel_size, map_pixel_freq_size
-global pixel_size, pixel_size_freq, min_cube_freq
-
-map_pixel_size = 4038
-map_pixel_freq_size = 1103
-pixel_size = 5.555555555556E-04 #7.77777777778E-04 #In degree ~similar SDC2
-pixel_size_freq = 1.045200000000E+05 #3.00000000000E+04 #In Hz ~factor x3 SDC2
-min_cube_freq = 1.304782280000E+09
-
-
-global CIANNA_path, work_path, cube_file_path
-
-CIANNA_path = "/minerva/dcornu/CIANNA/src/build/lib.*/"
-work_path = "/scratch/aanthore/LADUMA_data/WORK2/" #Temp directory
-cube_file_path = "/minerva/dcornu/LADUMA_data/laduma_dr1.2_image.1304~1420MHz_clean.fits"
-
-
-#Normalization parameters
-
-global do_norm, compute_std_norm, freq_smoothing
-global kernel_size, cube_spliting, size_file_split_limit
-
-do_norm = 1
-compute_std_norm = 1
-freq_smoothing = 0
-kernel_size = 20
-cube_spliting = 1
-size_file_split_limit = 4.0 #In Gigabytes
-
-
-global cont_removal_threshold, prenorm_scaling
-
-cont_removal_threshold = 0.5*6e-3 #in Jy
-prenorm_scaling = 0.08
-
-
-#####    NETWORK RELATED GLOBAL VARIABLES     #####
-
-global sky_size, freq_size, nb_param, nb_box
-
-sky_size = 64
-freq_size = 256
-nb_param = 6
-nb_box = 1
-
-
-#####    TRAINING RELATED GLOBAL VARIABLES    #####
-
-global bootstrap, max_nb_obj_per_image
-
-bootstrap = 0
-max_nb_obj_per_image = 10
-
-
-#####   INFERENCE RELATED GLOBAL VARIABLES    #####
-
-global c_size_sky, c_size_freq, yolo_nb_sky_reg, yolo_nb_freq_reg
-global overlap_sky, overlap_freq, patch_shift_sky, patch_shift_freq
-global orig_offset_sky, orig_offset_freq
-global nb_area_sky, nb_area_freq
-
-c_size_sky = 8
-c_size_freq = 16
-yolo_nb_sky_reg = int(sky_size/c_size_sky)
-yolo_nb_freq_reg = int(freq_size/c_size_freq)
-
-overlap_sky = c_size_sky
-overlap_freq = 2*c_size_freq
-patch_shift_sky = sky_size - overlap_sky
-patch_shift_freq = freq_size - overlap_freq
-
-orig_offset_sky = patch_shift_sky - ((int(map_pixel_size/2) - int(sky_size/2) + patch_shift_sky)%patch_shift_sky)
-orig_offset_freq = patch_shift_freq - ((int(map_pixel_freq_size/2) - int(freq_size/2) + patch_shift_freq)%patch_shift_freq)
-
-nb_area_sky = int((map_pixel_size+2*orig_offset_sky)/patch_shift_sky)
-nb_area_freq = int((map_pixel_freq_size+2*orig_offset_freq)/patch_shift_freq)
 
 #=========================================================================================================================
 
@@ -157,16 +78,16 @@ def fct_DIoU(box1, box2):
 #=========================================================================================================================
 
 @jit(nopython=True, cache=True, fastmath=False)
-def tile_filter(c_pred, c_box, c_tile, nb_box):
+def tile_filter(c_pred, c_box, c_tile, nb_box_tot):
 	"""
 	Extracts predicted bounding boxes from a YOLO-like 3D grid output and filters them based on objectness score.
 
 	Parameters:
-		c_pred: ndarray of shape (nb_box*(8+nb_param), f, dec, ra)
+		c_pred: ndarray of shape (nb_box_tot*(8+nb_param), f, dec, ra)
 			Raw network output containing bounding box parameters.
 		c_box: temporary 1D array (length = 8 + nb_param + 1) used to build boxes.
 		c_tile: output buffer to store kept boxes (modified in-place).
-		nb_box: number of boxes predicted per cell.
+		nb_box_tot: number of boxes predicted per cell.
 
 	Returns:
 		c_nb_box: int
@@ -176,22 +97,22 @@ def tile_filter(c_pred, c_box, c_tile, nb_box):
 
 	c_nb_box = 0  #Counter for valid boxes
 
-	for p_f in range(yolo_nb_freq_reg):			#Loop over frequency regions
-		for p_dec in range(yolo_nb_sky_reg):		#Loop over declination regions
-			for p_ra in range(yolo_nb_sky_reg):	#Loop over right ascension regions
+	for p_f in range(config.yolo_nb_freq_reg):			#Loop over frequency regions
+		for p_dec in range(config.yolo_nb_sky_reg):		#Loop over declination regions
+			for p_ra in range(config.yolo_nb_sky_reg):	#Loop over right ascension regions
 
-				for k in range(nb_box):		#Loop over all detected boxes
+				for k in range(nb_box_tot):		#Loop over all detected boxes
 
-					offset = int(k*(8+nb_param))
+					offset = int(k*(8+config.nb_param))
 
 					#Extract probability and objectness
 					c_box[6] = c_pred[offset+6,p_f,p_dec,p_ra] #probability
 					c_box[7] = c_pred[offset+7,p_f,p_dec,p_ra] #objectness
 
 					#Manual objectness penality on the edges of the images (help for both obj selection and NMS)
-					if(p_ra == 0 or p_ra == yolo_nb_sky_reg-1 or \
-                                           p_dec == 0 or p_dec == yolo_nb_sky_reg-1 or\
-                                           p_f == 0 or p_f == yolo_nb_freq_reg-1):
+					if(p_ra == 0 or p_ra == config.yolo_nb_sky_reg-1 or \
+                                           p_dec == 0 or p_dec == config.yolo_nb_sky_reg-1 or\
+                                           p_f == 0 or p_f == config.yolo_nb_freq_reg-1):
 
 						c_box[6] = max(0.03,c_box[6]-0.05)
 						c_box[7] = max(0.03,c_box[7]-0.05)
@@ -214,8 +135,8 @@ def tile_filter(c_pred, c_box, c_tile, nb_box):
 
 						#Save box
 						c_box[8] = k
-						c_box[9:9+nb_param] = c_pred[offset+8:offset+8+nb_param,p_f,p_dec,p_ra]
-						c_box[-1] = p_f*yolo_nb_freq_reg*yolo_nb_sky_reg + p_dec*yolo_nb_sky_reg + p_ra
+						c_box[9:9+config.nb_param] = c_pred[offset+8:offset+8+config.nb_param,p_f,p_dec,p_ra]
+						c_box[-1] = p_f*config.yolo_nb_freq_reg*config.yolo_nb_sky_reg + p_dec*config.yolo_nb_sky_reg + p_ra
 
 						#Store the final box
 						c_tile[c_nb_box,:] = c_box[:]
@@ -382,15 +303,15 @@ def cube_norm(cube_path, prefix):
 	np.nan_to_num(cube_data[:,:,:], copy=False, nan=0.0)
 
 	#Decide how to split the cube into sub-cubes for disk-saving and memory handling
-	if(cube_spliting):
+	if(config.cube_spliting):
 		encoding_bytes = 2
-		nb_sky_patch_per_subcube = int((np.sqrt(size_file_split_limit*1e9/(encoding_bytes*(map_pixel_freq_size+2*orig_offset_freq))) - overlap_sky)/patch_shift_sky)
-		sub_cube_pixel_size = nb_sky_patch_per_subcube*patch_shift_sky + overlap_sky
-		nb_sub_cube_per_dim = int(np.ceil((map_pixel_size + orig_offset_sky*2)/sub_cube_pixel_size))
+		nb_sky_patch_per_subcube = int((np.sqrt(config.size_file_split_limit*1e9/(encoding_bytes*(config.map_pixel_freq_size+2*config.orig_offset_freq))) - config.overlap_sky)/config.patch_shift_sky)
+		sub_cube_pixel_size = nb_sky_patch_per_subcube*config.patch_shift_sky + config.overlap_sky
+		nb_sub_cube_per_dim = int(np.ceil((config.map_pixel_size + config.orig_offset_sky*2)/sub_cube_pixel_size))
 		print(sub_cube_pixel_size, nb_sub_cube_per_dim)
 	else:
-		nb_sky_patch_per_subcube = nb_area_sky
-		sub_cube_pixel_size = nb_sky_patch_per_subcube*patch_shift_sky + overlap_sky
+		nb_sky_patch_per_subcube = config.nb_area_sky
+		sub_cube_pixel_size = nb_sky_patch_per_subcube*config.patch_shift_sky + config.overlap_sky
 		nb_sub_cube_per_dim = 1
 
 
@@ -399,47 +320,47 @@ def cube_norm(cube_path, prefix):
 		for n_w in range(0,nb_sub_cube_per_dim):
 
 			#Allocate buffer for this subcube, with border padding
-			norm_data = np.zeros((map_pixel_freq_size+2*orig_offset_freq,
-                                min(sub_cube_pixel_size, (map_pixel_size + orig_offset_sky*2 - n_h*(sub_cube_pixel_size-overlap_sky))),
-                                min(sub_cube_pixel_size, (map_pixel_size + orig_offset_sky*2 - n_w*(sub_cube_pixel_size-overlap_sky)))), dtype="uint16")
+			norm_data = np.zeros((config.map_pixel_freq_size+2*config.orig_offset_freq,
+                                min(sub_cube_pixel_size, (config.map_pixel_size + config.orig_offset_sky*2 - n_h*(sub_cube_pixel_size-config.overlap_sky))),
+                                min(sub_cube_pixel_size, (config.map_pixel_size + config.orig_offset_sky*2 - n_w*(sub_cube_pixel_size-config.overlap_sky)))), dtype="uint16")
 
 			#Compute spatial coordinates of current patch
-			y_min = n_h*nb_sky_patch_per_subcube*patch_shift_sky - orig_offset_sky
-			y_max = (n_h+1)*nb_sky_patch_per_subcube*patch_shift_sky + overlap_sky - orig_offset_sky
-			x_min = n_w*nb_sky_patch_per_subcube*patch_shift_sky - orig_offset_sky
-			x_max = (n_w+1)*nb_sky_patch_per_subcube*patch_shift_sky + overlap_sky - orig_offset_sky
+			y_min = n_h*nb_sky_patch_per_subcube*config.patch_shift_sky - config.orig_offset_sky
+			y_max = (n_h+1)*nb_sky_patch_per_subcube*config.patch_shift_sky + config.overlap_sky - config.orig_offset_sky
+			x_min = n_w*nb_sky_patch_per_subcube*config.patch_shift_sky - config.orig_offset_sky
+			x_max = (n_w+1)*nb_sky_patch_per_subcube*config.patch_shift_sky + config.overlap_sky - config.orig_offset_sky
 
 			#Clamp edges to cube dimensions
 			orig_y_min = max(0, y_min)
-			orig_y_max = min(map_pixel_size, y_max)
+			orig_y_max = min(config.map_pixel_size, y_max)
 			orig_x_min = max(0, x_min)
-			orig_x_max = min(map_pixel_size, x_max)
+			orig_x_max = min(config.map_pixel_size, x_max)
 
 			#Extract corresponding data block
 			data = np.asarray(cube_data[:,orig_y_min:orig_y_max,orig_x_min:orig_x_max], dtype="float32")
 
 			#If required, smooth the frequency axis
-			if(freq_smoothing):
-				kernel = np.zeros((kernel_size)) + 1.0
-				conv = np.zeros((map_pixel_freq_size))
-				for k in tqdm(range(0, map_pixel_size)):
-					for l in range(0, map_pixel_size):
+			if(config.freq_smoothing):
+				kernel = np.zeros((config.kernel_size)) + 1.0
+				conv = np.zeros((config.map_pixel_freq_size))
+				for k in tqdm(range(0, config.map_pixel_size)):
+					for l in range(0, config.map_pixel_size):
 						conv[:] = signal.convolve(data[:,k,l], kernel, mode="same")
 						data[:,k,l] = conv[:]
 
 			#Renormalize by each channel noise, scale, and tanh transform, them remap in [0, 1]
 			for i in range(0, np.shape(data)[0]):
-				data[i,:,:] = (np.tanh(prenorm_scaling*data[i,:,:] / c_norm[i]) + 1.0)*0.5
+				data[i,:,:] = (np.tanh(config.prenorm_scaling*data[i,:,:] / c_norm[i]) + 1.0)*0.5
 
 			end_y_min = max(0, -y_min)
-			end_y_max = sub_cube_pixel_size - max(0, y_max - map_pixel_size)
+			end_y_max = sub_cube_pixel_size - max(0, y_max - config.map_pixel_size)
 			end_x_min = max(0, -x_min)
-			end_x_max = sub_cube_pixel_size - max(0, x_max - map_pixel_size)
+			end_x_max = sub_cube_pixel_size - max(0, x_max - config.map_pixel_size)
 
                         #Scale to fit in uint16 format and save binary
 			norm_data[:,:,:] = 0.5*65535.0
-			norm_data[orig_offset_freq:-orig_offset_freq,end_y_min:end_y_max,end_x_min:end_x_max] = np.asarray(data[:,:,:] * 65535.0, dtype="uint16")
-			norm_data.tofile(work_path+name_prefix+"_%d_%d.bin"%(n_h, n_w))
+			norm_data[config.orig_offset_freq:-config.orig_offset_freq,end_y_min:end_y_max,end_x_min:end_x_max] = np.asarray(data[:,:,:] * 65535.0, dtype="uint16")
+			norm_data.tofile(config.work_path+name_prefix+"_%d_%d.bin"%(n_h, n_w))
 
 			del (norm_data)
 			gc.collect()

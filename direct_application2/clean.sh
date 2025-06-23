@@ -3,6 +3,7 @@
 ans=""
 
 rm ./outputs/out*
+rm -r ./__pycache__
 
 echo "./fwd_res :"
 ls ./fwd_res
