@@ -33,15 +33,7 @@ def post_process_cube(epoch, k,l):
 
 # === INFERENCE EXECUTION BLOCK ===
 def fwd_process():
-	#Initialize CIANNA model
-	cnn.init(in_dim=i_ar([config.sky_size, config.sky_size,config.freq_size]), in_nb_ch=1, 
-                        out_dim=1+config.max_nb_obj_per_image*(7+config.nb_param),
-                        bias=0.1, b_size=16, comp_meth='C_CUDA', dynamic_load=1, 
-                        mixed_precision="FP16C_FP32A", inference_only=1, adv_size=30)
-
-	nb_yolo_filters = cnn.set_yolo_params(no_override = 0, raw_output = 0)
-
-	cnn.load(config.net_path,config.load_epoch, bin=1)
+	
 
 	#Calculate how the cube is split into subcubes
 	if(config.cube_spliting):
@@ -111,4 +103,5 @@ def fwd_process():
 	# === FINAL CATALOG ASSEMBLY ===
 	if(1):
 		assemble_and_build_catalog(config.cat_name)
+		cnn.delete_dataset("TEST")
 
